@@ -1,0 +1,142 @@
+############################
+# GLOBAL
+############################
+*.log
+*.tmp
+*.temp
+*.DS_Store
+Thumbs.db
+
+############################
+# DOCKER
+############################
+docker-compose.override.yml
+docker-compose.*.yaml
+docker-compose.*.yml
+**/.dockerignore
+**/docker-data/*
+**/data/*
+**/logs/*
+**/.container-temp/
+
+# Ignore Docker build cache
+**/node_modules/.cache/
+**/target/
+**/tmp/
+
+############################
+# SSL / Certificates
+############################
+*.pem
+*.crt
+*.key
+*.pfx
+*.csr
+**/certs/*
+/etc/ssl/localcerts/*
+
+# Except sample placeholder
+!certs/README.md
+
+############################
+# NODE + ANGULAR FRONTEND
+############################
+# Node
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+
+# Angular build
+.angular/
+.angular/cache/
+dist/
+out-tsc/
+coverage/
+
+# Environment files (keep local secret)
+src/environments/environment.local.ts
+src/environments/environment.ts
+src/environments/environment.*.ts
+
+# Angular temporary
+*.ngsummary.json
+
+############################
+# PYTHON (backend)
+############################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pdb
+*.egg-info/
+*.eggs/
+.eggs/
+.build/
+dist/
+env/
+venv/
+ENV/
+.venv/
+
+# Local app launcher
+python-backend/app_local.py
+
+############################
+# .NET (Gateway & SignalR Node)
+############################
+# Build outputs
+bin/
+obj/
+out/
+*.dll
+*.exe
+*.pdb
+*.mdb
+
+# Rider / VSCode /.NET local files
+/.idea/
+/.vscode/
+/.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ASP.NET https dev certificates
+**/Properties/launchSettings.json
+
+############################
+# REDIS / RABBITMQ local data
+############################
+redis_data/
+rabbitmq_data/
+rabbitmq/logs/
+rabbitmq/data/
+
+############################
+# MISC / EDITORS
+############################
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# JetBrains IDE
+.idea/
+*.iml
+
+# Shell history
+*.sh~
+*.bash_history
+.history
+
+############################
+# BACKUPS
+############################
+*.bak
+*.old
+*.orig
+*.save
+

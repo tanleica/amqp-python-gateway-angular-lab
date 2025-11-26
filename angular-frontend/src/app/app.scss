@@ -1,0 +1,140 @@
+/* 🌙 RESET + BASE ----------------------------------------------------- */
+
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  font-family: system-ui, sans-serif;
+}
+
+body {
+  background: #f2f4f8;
+  padding: 20px;
+  display: flex;
+  justify-content: center;
+}
+
+/* 🌌 DASHBOARD WRAPPER ------------------------------------------------ */
+
+.dashboard {
+  width: 100%;
+  max-width: 1200px;
+}
+
+/* 🧭 HEADER ------------------------------------------------------------ */
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  color: #222;
+}
+
+.status {
+  font-weight: 600;
+  color: #888;
+}
+
+.status.connected {
+  color: #2ecc71;
+}
+
+/* 🧱 GRID LAYOUT ------------------------------------------------------- */
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(270px, 1fr));
+  gap: 20px;
+}
+
+/* 🃏 CARD -------------------------------------------------------------- */
+
+.card {
+  background: white;
+  padding: 18px;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+  border: 1px solid #dfe6ef;
+}
+
+.card h2 {
+  margin-bottom: 10px;
+  font-size: 20px;
+  color: #333;
+}
+
+.card.wide {
+  grid-column: 1 / -1;
+}
+
+/* 📝 INPUT ------------------------------------------------------------- */
+
+.input {
+  width: 100%;
+  padding: 10px;
+  border-radius: 8px;
+  border: 1px solid #cfd8e3;
+  margin-bottom: 12px;
+  font-size: 14px;
+}
+
+/* 🎛️ BUTTONS ----------------------------------------------------------- */
+
+.btn {
+  width: 100%;
+  padding: 12px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  color: white;
+  transition: 0.2s ease;
+}
+
+.btn.primary { background: #3b82f6; }
+.btn.primary:hover { background: #1d4ed8; }
+
+.btn.success { background: #22c55e; }
+.btn.success:hover { background: #15803d; }
+
+.btn.warning { background: #f97316; }
+.btn.warning:hover { background: #c2410c; }
+
+.btn.neutral { background: #64748b; }
+.btn.neutral:hover { background: #475569; }
+
+/* 🖥️ CONSOLE OUTPUT ---------------------------------------------------- */
+
+.console {
+  background: #0f172a;
+  color: #f8fafc;
+  padding: 12px;
+  border-radius: 8px;
+  margin-top: 12px;
+  font-size: 13px;
+  max-height: 200px;
+  overflow: auto;
+}
+
+.console.scroll {
+  max-height: 280px;
+}
+
+/* 📱 MOBILE FRIENDLY -------------------------------------------------- */
+
+@media (max-width: 600px) {
+  .header h1 {
+    font-size: 22px;
+  }
+  .card.wide { 
+    grid-column: span 1;
+  }
+}
+

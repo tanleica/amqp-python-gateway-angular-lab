@@ -1,0 +1,102 @@
+services:
+  signalr-node:
+    build:
+      context: ./signalr-node
+      dockerfile: Dockerfile
+    container_name: amqp_lab_signalr_node
+    ports:
+      - "60019:6001"
+    networks:
+      - amqp_lab_net
+    depends_on:
+      - redis
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:6001
+      - REDIS_PORT=6379
+      - REDIS_CHANNEL=amqp-lab
+
+  angular-client:
+    build:
+      context: ./angular-frontend
+      dockerfile: Dockerfile
+    container_name: amqp_lab_angular
+    ports:
+      - "44301:44301"
+    depends_on:
+      - gateway
+    volumes:
+      - /etc/ssl/localcerts:/etc/ssl/localcerts:ro
+    environment:
+      - GATEWAY_URL=https://192.168.60.66:5009
+    networks:
+      - amqp_lab_net
+
+  gateway:
+    build:
+      context: ./gateway-dotnet
+      dockerfile: Dockerfile
+    container_name: amqp_lab_gateway
+    ports:
+      - "5009:5009"
+    volumes:
+      - /etc/ssl/localcerts:/etc/ssl/localcerts:ro
+    environment:
+      - PYTHON_BACKEND_URL=http://python-backend:8081
+    depends_on:
+      - python-backend
+    networks:
+      - amqp_lab_net
+
+  python-backend:
+    build:
+      context: ./python-backend
+      dockerfile: Dockerfile
+    container_name: amqp_lab_python
+    ports:
+      - "8081:8081"
+    #command: ["python3", "app_docker.py"]
+    environment:
+      - RABBITMQ_HOST=rabbitmq
+      - RABBITMQ_PORT=5672
+      - RABBITMQ_USER=guest
+      - RABBITMQ_PASS=guest
+      - SIGNALR_PUSH_URL=http://signalr-node:6001/api/signalr-node/push-event
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+    networks:
+      - amqp_lab_net
+
+  redis:
+    image: redis:7
+    container_name: amqp_lab_redis
+    ports:
+      - "63799:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - amqp_lab_net
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: amqp_lab_rabbitmq
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    ports:
+      - "56729:5672"   # AMQP
+      - "15679:15672"  # Management UI
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - amqp_lab_net
+
+networks:
+  amqp_lab_net:
+    driver: bridge
+
+volumes:
+  redis_data:

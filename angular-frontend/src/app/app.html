@@ -1,0 +1,61 @@
+<div class="dashboard">
+
+  <header class="header">
+    <h1>AMQP Control Dashboard</h1>
+    <span class="status" [class.connected]="signalr.$connected()">● {{ signalr.$connected() ? 'Connected' : 'Disconnected' }}</span>
+  </header>
+
+  <!-- MAIN GRID -->
+  <div class="grid">
+
+    <!-- EXCHANGE PANEL -->
+    <div class="card">
+      <h2>Exchange</h2>
+      <input class="input" placeholder="exchange name" (input)=" $exchange.set($event.target.value) " />
+      <button class="btn primary" (click)="declareExchange()">Declare Exchange</button>
+    </div>
+
+    <!-- QUEUE PANEL -->
+    <div class="card">
+      <h2>Queue</h2>
+      <input class="input" placeholder="queue name" (input)=" $queue.set($event.target.value) " />
+      <button class="btn primary" (click)="declareQueue()">Declare Queue</button>
+    </div>
+
+    <!-- BIND PANEL -->
+    <div class="card">
+      <h2>Bind Queue → Exchange</h2>
+      <input class="input" placeholder="routing key" (input)=" $routingKey.set($event.target.value) " />
+      <button class="btn warning" (click)="bind()">Bind</button>
+    </div>
+
+    <!-- PUBLISH PANEL -->
+    <div class="card">
+      <h2>Publish Message</h2>
+      <input class="input" placeholder="message" (input)=" $message.set($event.target.value) " />
+      <button class="btn success" (click)="publish()">Publish</button>
+    </div>
+
+    <!-- CONSUME PANEL -->
+    <div class="card wide">
+      <h2>Consume</h2>
+      <button class="btn neutral" (click)="consume()">Consume Once</button>
+      <pre class="console">{{ $consumeResult() | json }}</pre>
+    </div>
+
+    <!-- REALTIME EVENTS -->
+    <div class="card wide">
+      <h2>Realtime Events</h2>
+      <pre class="console scroll">{{ signalr.$messages() | json }}</pre>
+    </div>
+
+    <!-- LOGS -->
+    <div class="card wide">
+      <h2>Logs</h2>
+      <pre class="console scroll">{{ $logs() | json }}</pre>
+    </div>
+
+  </div>
+
+</div>
+

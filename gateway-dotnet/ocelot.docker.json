@@ -1,0 +1,37 @@
+{
+  "Routes": [
+
+    {
+      "UpstreamPathTemplate": "/api/python-backend/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "DownstreamPathTemplate": "/api/python-backend/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "python-backend", "Port": 8081 }
+      ]
+    },
+    {
+      "UpstreamPathTemplate": "/hubs/signal/{everything}",
+      "UpstreamHttpMethod": [ "GET", "POST" ],
+      "DownstreamPathTemplate": "/hubs/signal/{everything}",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "signalr-node", "Port": 6001 }
+      ],
+      "EnableWebSocket": true
+    },
+    {
+      "UpstreamPathTemplate": "/api/signalr-node/push-event",
+      "UpstreamHttpMethod": [ "POST" ],
+      "DownstreamPathTemplate": "/api/signalr-node/push-event",
+      "DownstreamScheme": "http",
+      "DownstreamHostAndPorts": [
+        { "Host": "signalr-node", "Port": 6001 }
+      ]
+    }
+  ],
+  "GlobalConfiguration": {
+    "BaseUrl": "https://100.96.225.65:5009"
+  }
+}
+
