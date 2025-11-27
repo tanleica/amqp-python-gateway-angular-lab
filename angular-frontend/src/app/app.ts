@@ -1,87 +1,86 @@
-import { Component, inject, signal, OnInit } from '@angular/core';
-import { JsonPipe } from '@angular/common';
+import { Component, OnInit, signal, inject } from '@angular/core';
 import { RestApiService } from './rest-api.service';
 import { SignalRService } from './signalr.service';
+import { JsonPipe } from '@angular/common';
+import { FormsModule } from '@angular/forms';
 
 @Component({
   selector: 'app-root',
-  standalone: true,
-  imports: [JsonPipe],
+  imports: [JsonPipe, FormsModule],
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
 })
 export class App implements OnInit {
 
-  api = inject(RestApiService);
-  signalr = inject(SignalRService);
-
-  // input signals
+  // Signals (prefix $)
   $exchange = signal('');
   $queue = signal('');
   $routingKey = signal('');
   $message = signal('');
-
+  $consumeResult = signal<any | null>(null);
   $logs = signal<string[]>([]);
-  $consumeResult = signal<any>({});
+
+  api = inject(RestApiService);
+  public signalr = inject(SignalRService);
 
   ngOnInit() {
-    this.signalr.init();
+    this.signalr.start();
   }
 
-  log(msg: string) {
-    this.$logs.update(l => [...l, msg]);
+  // Setter helpers
+  setExchange(v: string) { this.$exchange.set(v); }
+  setQueue(v: string) { this.$queue.set(v); }
+  setRoutingKey(v: string) { this.$routingKey.set(v); }
+  setMessage(v: string) { this.$message.set(v); }
+
+  log(message: string) {
+    this.$logs.update(arr => [...arr, message]);
   }
 
   declareExchange() {
-    const name = this.$exchange().trim();
-    if (!name) return;
-    this.api.declareExchange(name).subscribe({
-      next: res => this.log(`Exchange declared: ${name}`),
-      error: err => this.log(`Error: ${err.message}`)
-    });
+    this.api.declareExchange(this.$exchange())
+      .subscribe({
+        next: res => this.log(`Exchange created: ${JSON.stringify(res)}`),
+        error: err => this.log(`Error: ${err.error?.message || err.message}`)
+      });
   }
 
   declareQueue() {
-    const q = this.$queue().trim();
-    if (!q) return;
-    this.api.declareQueue(q).subscribe({
-      next: res => this.log(`Queue declared: ${q}`),
-      error: err => this.log(`Error: ${err.message}`)
-    });
+    this.api.declareQueue(this.$queue())
+      .subscribe({
+        next: res => this.log(`Queue created: ${JSON.stringify(res)}`),
+        error: err => this.log(`Error: ${err.error?.message || err.message}`)
+      });
   }
 
   bind() {
-    this.api.bindQueue(
-      this.$queue().trim(),
-      this.$exchange().trim(),
-      this.$routingKey().trim()
-    ).subscribe({
-      next: res => this.log(`Bound OK`),
-      error: err => this.log(`Error: ${err.message}`)
-    });
+    this.api.bind(this.$queue(), this.$exchange(), this.$routingKey())
+      .subscribe({
+        next: res => this.log(`Bind ok: ${JSON.stringify(res)}`),
+        error: err => this.log(`Error: ${err.error?.message || err.message}`)
+      });
   }
 
   publish() {
     this.api.publish(
-      this.$exchange().trim(),
-      this.$routingKey().trim(),
-      this.$message().trim()
+      this.$exchange(),
+      this.$routingKey(),
+      this.$message()
     ).subscribe({
-      next: res => this.log(`Message published.`),
-      error: err => this.log(`Error: ${err.message}`)
+      next: res => this.log(`Published! ${JSON.stringify(res)}`),
+      error: err => this.log(`Error: ${err.error?.message || err.message}`)
     });
   }
 
   consume() {
-    const q = this.$queue().trim();
-    if (!q) return;
-    this.api.consume(q).subscribe({
-      next: res => {
-        this.$consumeResult.set(res);
-        this.log(`Consumed.`);
-      },
-      error: err => this.log(`Error: ${err.message}`)
-    });
+    this.api.consume(this.$queue())
+      .subscribe({
+        next: res => {
+          this.$consumeResult.set(res);
+          this.log(`Consumed: ${JSON.stringify(res)}`);
+        },
+        error: err => this.log(`Error: ${err.error?.message || err.message}`)
+      });
   }
 }
 

@@ -1,59 +1,108 @@
-# python-backend/app.py
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from amqp_raw import AmqpClient
-import threading
-import time
+from amqp_raw import AmqpRaw
+from signalr_push import push_event
+import os
 
 app = Flask(__name__)
 CORS(app)
 
-# Init AMQP
-amqp = AmqpClient(
-    host="rabbitmq",
-    port=5672,
-    username="guest",
-    password="guest"
+# ===============================
+# 1) AMQP CONFIG (local dev)
+# ===============================
+RABBIT_HOST = os.getenv("RABBIT_HOST", "localhost")
+RABBIT_PORT = int(os.getenv("RABBIT_PORT", "5672"))
+RABBIT_USER = os.getenv("RABBIT_USER", "guest")
+RABBIT_PASS = os.getenv("RABBIT_PASS", "guest")
+
+# For local testing: connect to local RabbitMQ or Docker RabbitMQ
+amqp = AmqpRaw(
+    host=RABBIT_HOST,
+    port=RABBIT_PORT,
+    username=RABBIT_USER,
+    password=RABBIT_PASS
 )
 
-@app.post("/declare-exchange")
+# ===============================
+# 2) API ROUTES (prefix unified)
+# ===============================
+
+@app.route("/api/python-backend/declare-exchange", methods=["POST"])
 def declare_exchange():
-    data = request.json
-    return jsonify(amqp.declare_exchange(
-        name=data["name"],
-        type=data.get("type", "direct")
-    ))
+    req = request.get_json()
+    name = req["name"]
+    amqp.declare_exchange(name)
+    return jsonify({"status": "ok", "exchange": name})
 
-@app.post("/declare-queue")
+
+@app.route("/api/python-backend/declare-queue", methods=["POST"])
 def declare_queue():
-    data = request.json
-    return jsonify(amqp.declare_queue(data["name"]))
+    req = request.get_json()
+    name = req["name"]
+    amqp.declare_queue(name)
+    return jsonify({"status": "ok", "queue": name})
 
-@app.post("/bind")
+
+@app.route("/api/python-backend/bind", methods=["POST"])
 def bind():
-    data = request.json
-    return jsonify(amqp.bind(
-        queue=data["queue"],
-        exchange=data["exchange"],
-        routing_key=data.get("routing_key", "")
-    ))
+    req = request.get_json()
+    queue = req["queue"]
+    exchange = req["exchange"]
+    routing_key = req["routingKey"]
 
-@app.post("/publish")
+    amqp.bind(queue, exchange, routing_key)
+    return jsonify({"status": "ok", "binding": req})
+
+
+@app.route("/api/python-backend/publish", methods=["POST"])
 def publish():
-    data = request.json
-    return jsonify(amqp.publish(
-        exchange=data["exchange"],
-        routing_key=data.get("routing_key", ""),
-        message=data["message"]
-    ))
+    req = request.get_json()
 
-@app.get("/consume")
+    ex = req["exchange"]
+    rk = req["routingKey"]
+    msg = req["message"]
+
+    # Publish AMQP message
+    amqp.publish(ex, rk, msg)
+
+    # 🔥 Send realtime notification via Gateway
+    push_event("amqpMessage", {
+        "exchange": ex,
+        "routing_key": rk,
+        "message": msg,
+        "source": "python-dev"
+    })
+
+    return jsonify({"status": "ok", "published": req})
+
+
+@app.route("/api/python-backend/consume", methods=["GET"])
 def consume():
     queue = request.args.get("queue")
-    msg = amqp.consume_one(queue)
-    return jsonify(msg or {})
+    msg = amqp.consume(queue)
 
-@app.post("/ack")
+    if msg:
+        return jsonify({
+            "status": "ok",
+            "message": msg["body"].decode(),
+            "delivery_tag": msg["delivery_tag"]
+        })
+
+    return jsonify({"status": "empty"})
+
+
+@app.route("/api/python-backend/ack", methods=["POST"])
 def ack():
-    data = request.json
-    return jsonify(amqp.ack(data["delivery_tag"]))
+    req = request.get_json()
+    tag = req.get("delivery_tag")
+    amqp.ack(tag)
+    return jsonify({"status": "ok", "ack": tag})
+
+
+# ===============================
+# 3) DEV SERVER
+# ===============================
+if __name__ == "__main__":
+    print("🐍 Python Backend (DEV MODE) running on http://127.0.0.1:8081")
+    app.run(host="0.0.0.0", port=8081, debug=True)
+

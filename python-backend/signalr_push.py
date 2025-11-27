@@ -1,21 +1,19 @@
-# python-backend/signalr_push.py
-import os
+# signalr_push.py
 import requests
 
-SIGNALR_PUSH_URL = os.environ.get(
-    "SIGNALR_PUSH_URL",
-    "http://signalr-node:6001/push-event"  # fallback DEV mode only
-)
+SIGNALR_PUSH_URL = "http://gateway:5009/api/signalr-node/push-event"
 
-def push_event(event_name: str, payload: dict):
+def push_event(event_name: str, data):
+    payload = {
+        "event": event_name,
+        "data": data
+    }
+
     try:
-        requests.post(
-            SIGNALR_PUSH_URL,
-            json={
-                "Event": event_name,
-                "Payload": payload
-            },
-            timeout=2
-        )
+        r = requests.post(SIGNALR_PUSH_URL, json=payload)
+        r.raise_for_status()
+        return True
     except Exception as e:
-        print(f"[WARN] SignalR push failed: {e}")
+        print("[SignalRPush] Error:", e)
+        return False
+

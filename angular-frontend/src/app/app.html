@@ -1,61 +1,133 @@
-<div class="dashboard">
-
+<div class="layout">
+  <!-- Header -->
   <header class="header">
-    <h1>AMQP Control Dashboard</h1>
-    <span class="status" [class.connected]="signalr.$connected()">● {{ signalr.$connected() ? 'Connected' : 'Disconnected' }}</span>
+    <div class="title">
+      <span class="material-symbols-rounded">radio</span>
+      AMQP Lab Dashboard
+    </div>
+
+    <div class="status" [class.online]="signalr.$connected()">
+      <span class="dot"></span>
+      {{ signalr.$connected() ? 'Realtime Connected' : 'Disconnected' }}
+    </div>
   </header>
 
-  <!-- MAIN GRID -->
+  <!-- Main Grid -->
   <div class="grid">
 
-    <!-- EXCHANGE PANEL -->
-    <div class="card">
-      <h2>Exchange</h2>
-      <input class="input" placeholder="exchange name" (input)=" $exchange.set($event.target.value) " />
-      <button class="btn primary" (click)="declareExchange()">Declare Exchange</button>
-    </div>
+    <!-- Exchange Panel -->
+    <section class="card">
+      <h2>Declare Exchange</h2>
+      <div class="form">
+        <input
+          placeholder="Exchange Name"
+          [ngModel]="$exchange()"
+          (ngModelChange)="setExchange($event)"
+        />
+        <button (click)="declareExchange()">Declare</button>
+      </div>
+    </section>
 
-    <!-- QUEUE PANEL -->
-    <div class="card">
-      <h2>Queue</h2>
-      <input class="input" placeholder="queue name" (input)=" $queue.set($event.target.value) " />
-      <button class="btn primary" (click)="declareQueue()">Declare Queue</button>
-    </div>
+    <!-- Queue Panel -->
+    <section class="card">
+      <h2>Declare Queue</h2>
+      <div class="form">
+        <input
+          placeholder="Queue Name"
+          [ngModel]="$queue()"
+          (ngModelChange)="setQueue($event)"
+        />
+        <button (click)="declareQueue()">Declare</button>
+      </div>
+    </section>
 
-    <!-- BIND PANEL -->
-    <div class="card">
-      <h2>Bind Queue → Exchange</h2>
-      <input class="input" placeholder="routing key" (input)=" $routingKey.set($event.target.value) " />
-      <button class="btn warning" (click)="bind()">Bind</button>
-    </div>
+    <!-- Bind Panel -->
+    <section class="card">
+      <h2>Bind Queue to Exchange</h2>
+      <div class="form">
+        <input
+          placeholder="Exchange"
+          [ngModel]="$exchange()"
+          (ngModelChange)="setExchange($event)"
+        />
+        <input
+          placeholder="Queue"
+          [ngModel]="$queue()"
+          (ngModelChange)="setQueue($event)"
+        />
+        <input
+          placeholder="Routing Key"
+          [ngModel]="$routingKey()"
+          (ngModelChange)="setRoutingKey($event)"
+        />
+        <button (click)="bind()">Bind</button>
+      </div>
+    </section>
 
-    <!-- PUBLISH PANEL -->
-    <div class="card">
+    <!-- Publish -->
+    <section class="card card-wide">
       <h2>Publish Message</h2>
-      <input class="input" placeholder="message" (input)=" $message.set($event.target.value) " />
-      <button class="btn success" (click)="publish()">Publish</button>
-    </div>
 
-    <!-- CONSUME PANEL -->
-    <div class="card wide">
-      <h2>Consume</h2>
-      <button class="btn neutral" (click)="consume()">Consume Once</button>
-      <pre class="console">{{ $consumeResult() | json }}</pre>
-    </div>
+      <div class="form-row">
+        <input
+          placeholder="Exchange"
+          [ngModel]="$exchange()"
+          (ngModelChange)="setExchange($event)"
+        />
+        <input
+          placeholder="Routing Key"
+          [ngModel]="$routingKey()"
+          (ngModelChange)="setRoutingKey($event)"
+        />
+      </div>
 
-    <!-- REALTIME EVENTS -->
-    <div class="card wide">
+      <textarea
+        placeholder="Message"
+        rows="4"
+        [ngModel]="$message()"
+        (ngModelChange)="setMessage($event)"
+      ></textarea>
+
+      <button class="primary" (click)="publish()">Publish</button>
+    </section>
+
+    <!-- Consume -->
+    <section class="card">
+      <h2>Consume Queue</h2>
+      <div class="form">
+        <input
+          placeholder="Queue"
+          [ngModel]="$queue()"
+          (ngModelChange)="setQueue($event)"
+        />
+        <button (click)="consume()">Consume</button>
+      </div>
+
+      <pre class="code" *ngIf="$consumeResult()">
+{{ $consumeResult() | json }}
+      </pre>
+    </section>
+
+    <!-- Realtime Events -->
+    <section class="card card-wide">
       <h2>Realtime Events</h2>
-      <pre class="console scroll">{{ signalr.$messages() | json }}</pre>
-    </div>
 
-    <!-- LOGS -->
-    <div class="card wide">
+      <div class="realtime-list">
+        <div class="event" *ngFor="let m of signalr.$messages()">
+          <span class="material-symbols-rounded">flash_on</span>
+          <span>{{ m | json }}</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- Logs -->
+    <section class="card card-wide">
       <h2>Logs</h2>
-      <pre class="console scroll">{{ $logs() | json }}</pre>
-    </div>
+      <pre class="logs">
+{{ $logs().join('\n') }}
+      </pre>
+    </section>
 
   </div>
-
 </div>
 

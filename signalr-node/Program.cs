@@ -44,6 +44,9 @@ app.MapPost("/api/signalr-node/push-event", async (
     return Results.Ok(new { delivered = true });
 });
 
-app.Run();
+app.MapGet("/health", () => Results.Ok(new { status = "ok" }));
+
+// 🔥 Port CHUẨN cho SignalR Node trong toàn kiến trúc
+app.Run("http://0.0.0.0:6001");
 
 public record EventEnvelope(string Event, object Payload);

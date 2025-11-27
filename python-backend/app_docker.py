@@ -1,94 +1,111 @@
-# python-backend/app_docker.py
-# DOCKER version – chạy bên trong docker-compose network
-
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from amqp_raw import AmqpClient
+from amqp_raw import AmqpRaw
+from signalr_push import push_event
 import os
-import requests
 
 app = Flask(__name__)
 CORS(app)
 
-# RabbitMQ service name in Docker
-RABBIT_HOST = os.getenv("RABBITMQ_HOST", "rabbitmq")
-RABBIT_PORT = int(os.getenv("RABBITMQ_PORT", "5672"))
+# ===============================
+# 1) AMQP CONNECTION
+# ===============================
+RABBIT_HOST = os.getenv("RABBIT_HOST", "rabbitmq")
+RABBIT_PORT = int(os.getenv("RABBIT_PORT", "5672"))
+RABBIT_USER = os.getenv("RABBIT_USER", "guest")
+RABBIT_PASS = os.getenv("RABBIT_PASS", "guest")
 
-# SignalR Push URL inside Docker
-SIGNALR_PUSH_URL = os.getenv(
-    "SIGNALR_PUSH_URL",
-    "http://signalr-node:6001/api/signalr-node/push-event"
-)
-
-amqp = AmqpClient(
+amqp = AmqpRaw(
     host=RABBIT_HOST,
     port=RABBIT_PORT,
-    username=os.getenv("RABBITMQ_USER", "guest"),
-    password=os.getenv("RABBITMQ_PASS", "guest")
+    username=RABBIT_USER,
+    password=RABBIT_PASS
 )
 
-@app.get("/api/python-backend/health")
+# ===============================
+# 2) API ROUTES
+# ===============================
+
+@app.route("/api/python-backend/health")
 def health():
-    return jsonify(ok=True, mode="docker")
+    return jsonify({"status": "ok"})
 
-@app.post("/api/python-backend/declare-exchange")
+@app.route("/api/python-backend/declare-exchange", methods=["POST"])
 def declare_exchange():
-    data = request.json
-    return jsonify(amqp.declare_exchange(
-        name=data["name"],
-        type=data.get("type", "direct")
-    ))
+    data = request.get_json()
+    name = data.get("name")
+    amqp.declare_exchange(name)
+    return jsonify({"status": "ok", "exchange": name})
 
-@app.post("/api/python-backend/declare-queue")
+
+@app.route("/api/python-backend/declare-queue", methods=["POST"])
 def declare_queue():
-    data = request.json
-    return jsonify(amqp.declare_queue(data["name"]))
+    data = request.get_json()
+    name = data.get("name")
+    amqp.declare_queue(name)
+    return jsonify({"status": "ok", "queue": name})
 
-@app.post("/api/python-backend/bind")
+
+@app.route("/api/python-backend/bind", methods=["POST"])
 def bind():
-    data = request.json
-    return jsonify(amqp.bind(
-        queue=data["queue"],
-        exchange=data["exchange"],
-        routing_key=data.get("routing_key", "")
-    ))
+    data = request.get_json()
+    queue = data["queue"]
+    exchange = data["exchange"]
+    routing_key = data["routingKey"]
+    amqp.bind(queue, exchange, routing_key)
+    return jsonify({"status": "ok", "binding": data})
 
-@app.post("/api/python-backend/publish")
+
+@app.route("/api/python-backend/publish", methods=["POST"])
 def publish():
-    data = request.json
+    data = request.get_json()
+    exchange = data["exchange"]
+    routing_key = data["routingKey"]
+    message = data["message"]
 
-    # AMQP publish
-    result = amqp.publish(
-        exchange=data["exchange"],
-        routing_key=data.get("routing_key", ""),
-        message=data["message"]
-    )
+    amqp.publish(exchange, routing_key, message)
 
-    # Push realtime to SignalR Node
-    try:
-        requests.post(
-            SIGNALR_PUSH_URL,
-            json={"Event": "amqpMessage", "Payload": data},
-            timeout=1
-        )
-    except:
-        pass
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "exchange": exchange,
+        "routing_key": routing_key,
+        "message": message
+    })
 
-    return jsonify(result)
+    return jsonify({
+        "status": "ok",
+        "published": data
+    })
 
-@app.get("/api/python-backend/consume")
+
+@app.route("/api/python-backend/consume", methods=["GET"])
 def consume():
     queue = request.args.get("queue")
-    msg = amqp.consume_one(queue)
-    return jsonify(msg or {})
+    msg = amqp.consume(queue)
 
-@app.post("/api/python-backend/ack")
+    if msg:
+        return jsonify({
+            "status": "ok",
+            "message": msg["body"].decode(),
+            "delivery_tag": msg["delivery_tag"]
+        })
+    
+    return jsonify({"status": "empty"})
+
+
+@app.route("/api/python-backend/ack", methods=["POST"])
 def ack():
-    data = request.json
-    return jsonify(amqp.ack(data["delivery_tag"]))
+    data = request.get_json()
+    tag = data.get("delivery_tag")
+    amqp.ack(tag)
+    return jsonify({"status": "ok", "ack": tag})
 
+
+# ===============================
+# 3) START SERVER
+# ===============================
 
 if __name__ == "__main__":
-    print("🚀 Python backend DOCKER starting on port 8081 ...")
+    print("🔥 Python Backend (Docker Mode) started on 0.0.0.0:8081")
     app.run(host="0.0.0.0", port=8081)
 

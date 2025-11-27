@@ -1,36 +1,30 @@
-// src/app/signalr.service.ts
+// signalr.service.ts
 import { Injectable, signal } from '@angular/core';
-import * as signalR from '@microsoft/signalr';
+import { HubConnection, HubConnectionBuilder, LogLevel } from '@microsoft/signalr';
 
 @Injectable({ providedIn: 'root' })
 export class SignalRService {
-
-  private baseUrl = 'https://100.96.225.65:5009/hubs/signal';
+  private hub!: HubConnection;
 
   $messages = signal<any[]>([]);
   $connected = signal(false);
-  hub!: signalR.HubConnection;
 
-  init() {
-    this.hub = new signalR.HubConnectionBuilder()
-      .withUrl(this.baseUrl, {
-        transport:
-          signalR.HttpTransportType.WebSockets |
-          signalR.HttpTransportType.ServerSentEvents |
-          signalR.HttpTransportType.LongPolling
-      })
-      .withAutomaticReconnect([1000, 2000, 5000])
-      .configureLogging(signalR.LogLevel.Information)
+  start() {
+    this.hub = new HubConnectionBuilder()
+      .withUrl('/hubs/signal')   // ✔ Correct: đi qua NGINX → Gateway
+      .withAutomaticReconnect()
+      .configureLogging(LogLevel.Information)
       .build();
 
-    this.hub.on("amqpMessage", msg => {
-      this.$messages.update(m => [...m, msg]);
-    });
-
-    this.hub
-      .start()
+    this.hub.start()
       .then(() => this.$connected.set(true))
-      .catch(err => console.error("SignalR connect failed:", err));
+      .catch(err => console.error('SignalR connect error:', err));
+
+    this.hub.onclose(() => this.$connected.set(false));
+
+    this.hub.on('amqpMessage', (payload) => {
+      this.$messages.update(arr => [...arr, payload]);
+    });
   }
 }
 

@@ -1,102 +1,132 @@
 services:
-  signalr-node:
-    build:
-      context: ./signalr-node
-      dockerfile: Dockerfile
-    container_name: amqp_lab_signalr_node
-    ports:
-      - "60019:6001"
-    networks:
-      - amqp_lab_net
-    depends_on:
-      - redis
-    environment:
-      - ASPNETCORE_URLS=http://0.0.0.0:6001
-      - REDIS_PORT=6379
-      - REDIS_CHANNEL=amqp-lab
-
-  angular-client:
+  # ============================================
+  # 1) ANGULAR FRONTEND (served via nginx)
+  # ============================================
+  angular-frontend:
     build:
       context: ./angular-frontend
       dockerfile: Dockerfile
-    container_name: amqp_lab_angular
+    container_name: amqp_fe
     ports:
-      - "44301:44301"
-    depends_on:
-      - gateway
-    volumes:
-      - /etc/ssl/localcerts:/etc/ssl/localcerts:ro
-    environment:
-      - GATEWAY_URL=https://192.168.60.66:5009
+      - "55555:80"
     networks:
       - amqp_lab_net
+    depends_on:
+      - gateway
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
 
+  # ============================================
+  # 2) .NET GATEWAY (OCELOT - NO SSL)
+  # ============================================
   gateway:
     build:
       context: ./gateway-dotnet
       dockerfile: Dockerfile
-    container_name: amqp_lab_gateway
+    container_name: amqp_gateway
+    environment:
+      - ASPNETCORE_URLS=http://0.0.0.0:5009
     ports:
       - "5009:5009"
-    volumes:
-      - /etc/ssl/localcerts:/etc/ssl/localcerts:ro
-    environment:
-      - PYTHON_BACKEND_URL=http://python-backend:8081
-    depends_on:
-      - python-backend
     networks:
       - amqp_lab_net
+    depends_on:
+      - python-backend
+      - signalr-node
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5009/healthz"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
 
+  # ============================================
+  # 3) PYTHON BACKEND
+  # ============================================
   python-backend:
     build:
       context: ./python-backend
       dockerfile: Dockerfile
-    container_name: amqp_lab_python
+    container_name: amqp_python
+    environment:
+      - RABBIT_HOST=rabbitmq
+      - RABBIT_PORT=5672
+      - RABBIT_USER=guest
+      - RABBIT_PASS=guest
     ports:
       - "8081:8081"
-    #command: ["python3", "app_docker.py"]
-    environment:
-      - RABBITMQ_HOST=rabbitmq
-      - RABBITMQ_PORT=5672
-      - RABBITMQ_USER=guest
-      - RABBITMQ_PASS=guest
-      - SIGNALR_PUSH_URL=http://signalr-node:6001/api/signalr-node/push-event
+    networks:
+      - amqp_lab_net
     depends_on:
-      rabbitmq:
-        condition: service_healthy
-    networks:
-      - amqp_lab_net
+      - rabbitmq
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/python-backend/health"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
 
-  redis:
-    image: redis:7
-    container_name: amqp_lab_redis
+  # ============================================
+  # 4) NODE SIGNALR
+  # ============================================
+  signalr-node:
+    build:
+      context: ./signalr-node
+      dockerfile: Dockerfile
+    container_name: amqp_signalr
+    environment:
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
     ports:
-      - "63799:6379"
-    volumes:
-      - redis_data:/data
+      - "7001:6001"
     networks:
       - amqp_lab_net
+    depends_on:
+      - redis
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:6001/health || exit 1"]
+      interval: 10s
+      timeout: 4s
+      retries: 5
 
+  # ============================================
+  # 5) RABBITMQ
+  # ============================================
   rabbitmq:
     image: rabbitmq:3-management
-    container_name: amqp_lab_rabbitmq
-    healthcheck:
-      test: ["CMD", "rabbitmq-diagnostics", "ping"]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    ports:
-      - "56729:5672"   # AMQP
-      - "15679:15672"  # Management UI
+    container_name: amqp_rabbit
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - "56729:5672"
+      - "15679:15672"
     networks:
       - amqp_lab_net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ============================================
+  # 6) REDIS (SignalR backplane)
+  # ============================================
+  redis:
+    image: redis:7
+    container_name: amqp_redis
+    ports:
+      - "6379:6379"
+    networks:
+      - amqp_lab_net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
 
 networks:
   amqp_lab_net:
     driver: bridge
 
-volumes:
-  redis_data:

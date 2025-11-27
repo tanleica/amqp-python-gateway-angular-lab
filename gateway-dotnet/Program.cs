@@ -1,6 +1,5 @@
 // gateway-dotnet/Program.cs
 
-
 using Ocelot.DependencyInjection;
 using Ocelot.Middleware;
 
@@ -20,15 +19,9 @@ builder.Services.AddCors(options =>
     });
 });
 
-// HTTPS cert
 builder.WebHost.ConfigureKestrel(options =>
 {
-    var certPath = "/etc/ssl/localcerts/gateway.pfx";
-    var certPassword = "ALPHA";
-    options.ListenAnyIP(5009, listen =>
-    {
-        listen.UseHttps(certPath, certPassword);
-    });
+    options.ListenAnyIP(5009); // HTTP ONLY
 });
 
 builder.Services.AddOcelot();
@@ -94,6 +87,8 @@ app.MapWhen(
 );
 
 app.MapGet("/", () => Results.Text("Gateway OK"));
+
+app.MapGet("/healthz", () => Results.Ok(new { status = "ok" }));
 
 app.Run();
 */
