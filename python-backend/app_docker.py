@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify
 from flask_cors import CORS
-from amqp_raw import AmqpRaw
+from amqp_raw import AmqpClient
 from signalr_push import push_event
 import os
 
@@ -15,7 +15,7 @@ RABBIT_PORT = int(os.getenv("RABBIT_PORT", "5672"))
 RABBIT_USER = os.getenv("RABBIT_USER", "guest")
 RABBIT_PASS = os.getenv("RABBIT_PASS", "guest")
 
-amqp = AmqpRaw(
+amqp = AmqpClient(
     host=RABBIT_HOST,
     port=RABBIT_PORT,
     username=RABBIT_USER,
@@ -35,6 +35,13 @@ def declare_exchange():
     data = request.get_json()
     name = data.get("name")
     amqp.declare_exchange(name)
+
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "message": "Exchange declared",
+        "name": name
+    })
+
     return jsonify({"status": "ok", "exchange": name})
 
 
@@ -43,6 +50,13 @@ def declare_queue():
     data = request.get_json()
     name = data.get("name")
     amqp.declare_queue(name)
+
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "message": "Queue declared",
+        "name": name
+    })
+
     return jsonify({"status": "ok", "queue": name})
 
 
@@ -53,6 +67,15 @@ def bind():
     exchange = data["exchange"]
     routing_key = data["routingKey"]
     amqp.bind(queue, exchange, routing_key)
+
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "message": "Routing key bound",
+        "exchange": exchange,
+        "queue": queue,
+        "routing_key": routing_key
+    })
+
     return jsonify({"status": "ok", "binding": data})
 
 
@@ -81,14 +104,21 @@ def publish():
 @app.route("/api/python-backend/consume", methods=["GET"])
 def consume():
     queue = request.args.get("queue")
-    msg = amqp.consume(queue)
+    msg = amqp.consume_one(queue)
 
     if msg:
         return jsonify({
             "status": "ok",
-            "message": msg["body"].decode(),
-            "delivery_tag": msg["delivery_tag"]
+            "message": msg["message"],
+            "delivery_tag": msg["tag"]
         })
+
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "message": "Message consume (one) processed",
+        "queue": queue,
+        "msg": msg
+    })
     
     return jsonify({"status": "empty"})
 
@@ -98,6 +128,14 @@ def ack():
     data = request.get_json()
     tag = data.get("delivery_tag")
     amqp.ack(tag)
+
+    # 🔥 Push realtime message qua Gateway → SignalR Node
+    push_event("amqpMessage", {
+        "message": "Ack",
+        "data": data,
+        "tag": tag
+    })
+
     return jsonify({"status": "ok", "ack": tag})
 
 

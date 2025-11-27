@@ -28,6 +28,9 @@ builder.Services.AddOcelot();
 
 var app = builder.Build();
 
+// ❗ PHẢI LUÔN LUÔN đứng TRƯỚC mọi middleware khác
+app.UseWebSockets();
+
 app.UseCors("AllowAngular");
 app.UseRouting();
 

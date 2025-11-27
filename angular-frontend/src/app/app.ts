@@ -1,4 +1,4 @@
-import { Component, OnInit, signal, inject } from '@angular/core';
+import { Component, signal, inject } from '@angular/core';
 import { RestApiService } from './rest-api.service';
 import { SignalRService } from './signalr.service';
 import { JsonPipe } from '@angular/common';
@@ -10,7 +10,7 @@ import { FormsModule } from '@angular/forms';
   templateUrl: './app.html',
   styleUrls: ['./app.scss']
 })
-export class App implements OnInit {
+export class App {
 
   // Signals (prefix $)
   $exchange = signal('');
@@ -22,10 +22,6 @@ export class App implements OnInit {
 
   api = inject(RestApiService);
   public signalr = inject(SignalRService);
-
-  ngOnInit() {
-    this.signalr.start();
-  }
 
   // Setter helpers
   setExchange(v: string) { this.$exchange.set(v); }
