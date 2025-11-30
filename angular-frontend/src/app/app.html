@@ -3,7 +3,7 @@
   <!-- Header -->
   <header class="header">
     <div class="left">
-      <strong>AMQP Lab</strong>
+      <strong>AMQP Lab Adamantium Edition</strong>
     </div>
 
     <div class="right" [class.online]="signalr.$connected()">
@@ -13,6 +13,33 @@
   </header>
 
   <main class="container">
+
+<div class="tabs-wrapper">
+  <button 
+    class="tab-item" 
+    [class.active]="$selectedTab() === 'lab'"
+    (click)="$selectedTab.set('lab')">
+      🚀 AMQP Lab
+  </button>
+
+  <button 
+    class="tab-item" 
+    [class.active]="$selectedTab() === 'advanced'"
+    (click)="$selectedTab.set('advanced')">
+      📊 Prometheus
+  </button>
+
+  <button
+    class="tab-item"
+    [class.active]="$selectedTab() === 'prom'"
+    (click)="$selectedTab.set('prom')">
+      💎 Advanced
+  </button>
+
+</div>
+
+
+@if ($selectedTab() === 'lab') {
 
     <!-- Declare Exchange -->
     <section class="card">
@@ -103,6 +130,43 @@
 {{ $logs().join('\n') }}
       </pre>
     </section>
+
+}
+
+@if ($selectedTab() === 'prom') {
+  <h2>Prometheus Dashboard</h2>
+
+  @if ($metrics()) {
+  @let m = $metrics();
+  <div>
+  
+    <p><b>Connections:</b> {{ m!.rabbitmqConnections }}</p>
+    <p><b>Queues:</b> {{ m!.rabbitmqQueues }}</p>
+    <p><b>Messages Ready:</b> {{ m!.messagesReady }}</p>
+    <p><b>Messages Unacked:</b> {{ m!.messagesUnacked }}</p>
+    <p><b>Total Messages:</b> {{ m!.messagesTotal }}</p>
+
+  </div>
+  } @else {
+    <h4>Not fetched</h4>
+  }
+}
+
+@if ($selectedTab() === 'advanced') {
+  <div class="panel">
+    <h3>AMQP Advanced Metrics</h3>
+
+    <pre>{{ $stats() | json }}</pre>
+
+    <h4>DLQ Peek</h4>
+    <input placeholder="Queue name" [(ngModel)]="dlqQueue">
+
+    <button (click)="peekDlq()">Peek DLQ</button>
+    <pre>{{ $dlq() | json }}</pre>
+
+    <button (click)="requeueDlq()">Requeue to Main</button>
+  </div>
+}
 
   </main>
 
