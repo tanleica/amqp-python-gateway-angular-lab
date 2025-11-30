@@ -91,17 +91,19 @@ services:
       retries: 5
 
   # ============================================
-  # 5) RABBITMQ
+  # 5) RABBITMQ (with Prometheus enabled)
   # ============================================
   rabbitmq:
-    image: rabbitmq:3-management
+    image: rabbitmq:3.13.1-management
     container_name: amqp_rabbit
     environment:
       RABBITMQ_DEFAULT_USER: guest
       RABBITMQ_DEFAULT_PASS: guest
+      RABBITMQ_SERVER_ADDITIONAL_ERL_ARGS: "-rabbitmq_prometheus enabled"
     ports:
-      - "56729:5672"
-      - "15679:15672"
+      - "56729:5672"      # AMQP
+      - "15679:15672"     # Management UI
+      - "15692:15692"     # Prometheus Metrics
     networks:
       - amqp_lab_net
     healthcheck:
