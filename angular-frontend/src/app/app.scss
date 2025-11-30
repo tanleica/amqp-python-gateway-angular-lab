@@ -1,172 +1,189 @@
-/* RESET BUTTON & INPUT to avoid mobile override */
-button, input, textarea {
-  all: unset;               /* Reset toàn bộ style để tránh Android override */
+/* ============================================
+   GLOBAL FOUNDATION
+=============================================== */
+* {
   box-sizing: border-box;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
-/* PAGE */
-.page {
-  font-family: system-ui, sans-serif;
-  background: #f2f3f7;
-  min-height: 100vh;
-  padding: 0;
+body {
   margin: 0;
+  padding: 0;
+  background: #f4f6f9;
+  color: #222;
 }
 
-/* HEADER */
-.header {
-  position: sticky;
-  top: 0;
-  z-index: 20;
-  background: white;
-  padding: 14px 16px;
-  border-bottom: 1px solid #ddd;
-
+/* ============================================
+   TABS (iOS segmented style)
+=============================================== */
+.tabs {
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-
-  .left {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    strong {
-      font-size: 18px;
-    }
-  }
-
-  .right {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-
-    .dot {
-      width: 10px;
-      height: 10px;
-      border-radius: 50%;
-      background: #aaa;
-    }
-
-    &.online .dot {
-      background: #00c853;
-    }
-  }
-}
-
-/* CONTAINER */
-.container {
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-/* CARD */
-.card {
-  background: white;
-  padding: 16px;
-  border-radius: 14px;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.08);
-
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-
-  h2 {
-    margin: 0;
-    font-size: 17px;
-    font-weight: 600;
-    color: #222;
-  }
-
-  input, textarea {
-    /* 🔥 Không bao giờ bị tràn lề */
-    width: 100%;
-    max-width: 100%;
-    display: block;
-
-    padding: 12px 14px;
-    border-radius: 10px;
-    border: 1px solid #ccc;
-
-    font-size: 15px;
-    background: #fafafa;
-
-    &:focus {
-      border-color: #2979ff;
-      outline: 2px solid #2979ff;
-      background: white;
-    }
-  }
-}
-
-/* BUTTON FIX – Material style */
-button {
-  display: block;
-  width: 100%;
-  padding: 12px 14px;
-  text-align: center;
-  border-radius: 10px;
-  cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
-
-  background: #e0e0e0;
-  color: #333;
-
-  &.primary {
-    background: #2979ff;
-    color: white;
-  }
-
-  &:active {
-    opacity: 0.8;
-  }
-}
-
-/* LOGS / EVENTS */
-.logbox, .output {
-  background: #f5f5f5;
-  padding: 10px;
-  border-radius: 8px;
-  font-size: 13px;
-  max-height: 200px;
-  overflow-y: auto;
-}
-
-.event-list .logbox {
-  margin: 8px 0px;
-}
-
-.tabs-wrapper {
-  display: flex;
-  justify-content: center;
-  align-items: center;
   gap: 12px;
-  margin: 12px 0;
+  padding: 18px 16px;
 }
 
 .tab-item {
   flex: 1;
-  padding: 12px 0;
-  border-radius: 12px;
+  text-align: center;
+  padding: 14px 0;
+
+  background: linear-gradient(to bottom, #ececee, #dadade);
+  border-radius: 14px;
+
   font-size: 16px;
   font-weight: 600;
-  border: none;
-  background: #e7e7e7;
-  color: #333;
+  color: #555;
   cursor: pointer;
+
   transition: all 0.25s ease;
+  border: 1px solid #d0d0d5;
 }
 
 .tab-item:hover {
-  background: #dcdcdc;
+  background: #d6d6da;
 }
 
 .tab-item.active {
-  background: #2979ff;
+  background: linear-gradient(135deg, #347eff, #1f6dff);
   color: white;
-  box-shadow: 0 2px 6px rgba(0,0,0,0.15);
+  border-color: #1f6dff;
+  box-shadow: 0 6px 18px rgba(0, 60, 255, 0.25);
+}
+
+/* ============================================
+   SECTION TITLES
+=============================================== */
+h3 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 20px 0 12px;
+  color: #1a1a1a;
+}
+
+h4 {
+  font-size: 18px;
+  margin: 20px 0 8px;
+  font-weight: 600;
+  color: #333;
+}
+
+/* ============================================
+   INPUTS (soft, clean, premium)
+=============================================== */
+input, textarea {
+  width: 100%;
+  padding: 14px 16px;
+
+  background: #fff;
+  border-radius: 14px;
+  border: 1px solid #d7d9de;
+
+  font-size: 15px;
+  color: #333;
+
+  transition: all 0.25s ease;
+  margin-bottom: 14px;
+
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+input:focus,
+textarea:focus {
+  border-color: #347eff;
+  box-shadow: 0 0 0 4px rgba(52,126,255,0.18);
+  outline: none;
+}
+
+/* ============================================
+   BUTTON GROUP
+=============================================== */
+.buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 18px 0;
+}
+
+/* ============================================
+   BUTTONS (gradient, soft-shadow)
+=============================================== */
+button {
+  width: 100%;
+  padding: 14px;
+  text-align: center;
+
+  background: linear-gradient(to bottom, #f1f1f3, #d9d9dd);
+  border-radius: 14px;
+  border: 1px solid #ccc;
+
+  font-size: 15px;
+  font-weight: 600;
+  color: #333;
+  cursor: pointer;
+
+  transition: all 0.25s ease;
+}
+
+button:hover {
+  background: #dcdce0;
+}
+
+button:active {
+  transform: scale(0.98);
+  box-shadow: inset 0 0 6px rgba(0,0,0,0.1);
+}
+
+/* ============================================
+   PRE / LOG OUTPUT
+=============================================== */
+pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  line-height: 1.45;
+
+  background: #fff;
+  border-radius: 14px;
+  padding: 14px;
+  border: 1px solid #e2e4ea;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+}
+
+/* Tô màu dấu [] cho dễ nhìn */
+pre::before,
+pre::after {
+  color: #888;
+  font-weight: 600;
+}
+
+/* highlight các chuỗi log */
+pre {
+  color: #222;
+}
+
+pre span.string {
+  color: #2a6fe8;
+  font-weight: 600;
+}
+
+/* ============================================
+   METRIC BLOCK
+=============================================== */
+.metric-block {
+  padding: 14px;
+  background: white;
+  border-radius: 14px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  border: 1px solid #e2e4ea;
+}
+
+.metric-block p {
+  margin: 6px 0;
+  font-size: 15px;
+}
+
+button .count {
+  font-weight: 600;
+  margin-left: 6px;
+  color: #0078ff;
 }
 

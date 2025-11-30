@@ -94,6 +94,7 @@ def publish():
 
     # 🔥 Push realtime message qua Gateway → SignalR Node
     push_event("amqpMessage", {
+        "type": "published",
         "exchange": exchange,
         "routing_key": routing_key,
         "message": message
@@ -104,28 +105,45 @@ def publish():
         "published": data
     })
 
-
 @app.route("/api/python-backend/consume", methods=["GET"])
 def consume():
     queue = request.args.get("queue")
-    msg = amqp.consume_one(queue)
-
-    if msg:
+    if not queue:
         return jsonify({
-            "status": "ok",
-            "message": msg["message"],
-            "delivery_tag": msg["tag"]
+            "ok": False,
+            "error": "Missing 'queue' query parameter"
+        }), 400
+
+    try:
+        msg = amqp.consume_one(queue)
+
+        # Không có message
+        if msg is None:
+            return jsonify({
+                "ok": False,
+                "queue": queue,
+                "message": None
+            })
+
+        # 🔥 1) Push log realtime
+        push_event("amqpMessage", {
+            "type": "consumed",
+            "queue": queue,
+            "message": msg.get("message"),
+            "exchange": msg.get("exchange"),
+            "routing_key": msg.get("routing_key"),
+            "properties": msg.get("properties"),
         })
 
-    # 🔥 Push realtime message qua Gateway → SignalR Node
-    push_event("amqpMessage", {
-        "message": "Message consume (one) processed",
-        "queue": queue,
-        "msg": msg
-    })
-    
-    return jsonify({"status": "empty"})
+        return jsonify(msg)
 
+    except Exception as e:
+        print("[AMQP] Consume error:", repr(e))
+        return jsonify({
+            "ok": False,
+            "queue": queue,
+            "error": str(e)
+        }), 500
 
 @app.route("/api/python-backend/ack", methods=["POST"])
 def ack():
@@ -159,12 +177,6 @@ def amqp_stats():
     return jsonify(amqp.metrics)
 
 
-@app.route("/api/python-backend/dlq-peek", methods=["GET"])
-def dlq_peek():
-    q = request.args.get("queue")
-    return jsonify(amqp.peek_dlq(q))
-
-
 @app.route("/api/python-backend/dlq-requeue", methods=["POST"])
 def dlq_requeue():
     data = request.get_json()
@@ -178,29 +190,87 @@ def dlq_requeue():
     amqp.publish(exchange=q, routing_key=q, message=body.decode("utf-8"))
     return jsonify({"status": "requeued"})
 
-@app.route("/api/python-backend/amqp-stats")
-def amqp_stats():
-    return jsonify(amqp.metrics)
-
-
 @app.route("/api/python-backend/dlq-peek", methods=["GET"])
 def dlq_peek():
     q = request.args.get("queue")
     return jsonify(amqp.peek_dlq(q))
 
+#@app.route("/api/python-backend/queue-length", methods=["GET"])
+#def queue_length():
+#    queue = request.args.get("queue")
+#    if not queue:
+#        return jsonify({"ok": False, "error": "Missing queue"}), 400
 
-@app.route("/api/python-backend/dlq-requeue", methods=["POST"])
-def dlq_requeue():
-    data = request.get_json()
-    q = data["queue"]
-    dlq_name = f"{q}.DLQ"
+#    try:
+#        import pika
 
-    method, props, body = amqp.channel.basic_get(queue=dlq_name, auto_ack=True)
-    if method is None:
-        return jsonify({"status": "empty"})
+#        creds = pika.PlainCredentials(
+#            os.environ.get("RABBIT_USER", "guest"),
+#            os.environ.get("RABBIT_PASS", "guest")
+#        )
 
-    amqp.publish(exchange=q, routing_key=q, message=body.decode("utf-8"))
-    return jsonify({"status": "requeued"})
+#        params = pika.ConnectionParameters(
+#            host=os.environ.get("RABBIT_HOST", "rabbitmq"),
+#            port=int(os.environ.get("RABBIT_PORT", 5672)),
+#            credentials=creds,
+#            heartbeat=0
+#        )
+
+#        with pika.BlockingConnection(params) as conn:
+#            ch = conn.channel()
+#            q = ch.queue_declare(queue=queue, passive=True)
+#            return jsonify({
+#                "ok": True,
+#                "queue": queue,
+#                "messages": q.method.message_count
+#            })
+
+#    except Exception as e:
+#        print("Queue length error:", repr(e))
+#        return jsonify({"ok": False, "error": str(e)}), 500
+
+@app.route("/api/python-backend/queue-length", methods=["GET"])
+def queue_length():
+    queue = request.args.get("queue")
+    if not queue:
+        return jsonify({"ok": False, "error": "Missing queue"}), 400
+
+    try:
+        import pika
+
+        creds = pika.PlainCredentials(
+            os.environ.get("RABBIT_USER", "guest"),
+            os.environ.get("RABBIT_PASS", "guest")
+        )
+
+        params = pika.ConnectionParameters(
+            host=os.environ.get("RABBIT_HOST", "rabbitmq"),
+            port=int(os.environ.get("RABBIT_PORT", 5672)),
+            credentials=creds,
+            heartbeat=0
+        )
+
+        with pika.BlockingConnection(params) as conn:
+            ch = conn.channel()
+
+            try:
+                # Passive declare: không tạo queue, chỉ hỏi thông tin
+                q = ch.queue_declare(queue=queue, passive=True)
+                count = q.method.message_count
+            except Exception:
+                # Queue không tồn tại hoặc config không khớp → trả count=0
+                count = 0
+
+            return jsonify({
+                "ok": True,
+                "queue": queue,
+                "messages": count
+            })
+
+    except Exception as e:
+        print("Queue length error:", repr(e))
+        return jsonify({"ok": False, "error": str(e)}), 500
+
 
 
 # ===============================

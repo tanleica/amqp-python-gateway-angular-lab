@@ -3,9 +3,10 @@ import time
 import json
 import random
 import traceback
-
+from signalr_push import push_event
 
 class AmqpClient:
+
     def __init__(self,
                  host="amqp_rabbit",
                  port=5672,
@@ -17,6 +18,8 @@ class AmqpClient:
         self.username = username
         self.password = password
         self.use_quorum = use_quorum
+        self.binding_map = {}   # routing_key → queue
+
 
         # Internal metrics
         self.metrics = {
@@ -85,17 +88,18 @@ class AmqpClient:
             host=self.host,
             port=self.port,
             credentials=creds,
-            heartbeat=30,                   # Level 5: tuned heartbeat
-            blocked_connection_timeout=10,
-            connection_attempts=3,
-            retry_delay=2
+            heartbeat=0,                # ⬅ FIX: tăng heartbeat
+            blocked_connection_timeout=30,
+            connection_attempts=5,
+            retry_delay=3
         )
 
         self.connection = pika.BlockingConnection(params)
         self.channel = self.connection.channel()
-        self.channel.confirm_delivery()     # Publisher confirms
 
-        # Return callback: when mandatory=True & unroutable
+        # ⬅ KHÔNG recommend khi vẫn dùng BlockingConnection
+        # self.channel.confirm_delivery()
+
         self.channel.add_on_return_callback(self._on_return)
 
         print("[AMQP] Connected")
@@ -175,6 +179,7 @@ class AmqpClient:
     # 6) BIND
     # ============================================================
     def bind(self, queue, exchange, routing_key):
+        self.binding_map[routing_key] = queue
         return self._safe(lambda: self._bind(queue, exchange, routing_key))
 
     def _bind(self, queue, exchange, routing_key):
@@ -190,9 +195,76 @@ class AmqpClient:
     # ============================================================
     # 7) PUBLISH (Confirm + Retry + DLX safe)
     # ============================================================
-    def publish(self, exchange, routing_key, message):
-        body = json.dumps({"message": message})
-        return self._safe(lambda: self._publish(exchange, routing_key, body))
+    def publish(self, exchange, routing_key, body):
+        """
+        API-safe publish: open a new connection for each publish request.
+        """
+
+        import pika
+
+        creds = pika.PlainCredentials(self.username, self.password)
+
+        params = pika.ConnectionParameters(
+            host=self.host,
+            port=self.port,
+            credentials=creds,
+            heartbeat=0,
+            blocked_connection_timeout=10,
+            connection_attempts=3,
+            retry_delay=2
+        )
+
+        queue_name = self.binding_map.get(routing_key, routing_key)
+
+        try:
+            # Tạo connection riêng cho mỗi publish
+            with pika.BlockingConnection(params) as conn:
+                ch = conn.channel()
+
+                # đảm bảo exchange tồn tại
+                ch.exchange_declare(
+                    exchange=exchange,
+                    exchange_type="direct",
+                    durable=True
+                )
+
+                ch.basic_publish(
+                    exchange=exchange,
+                    routing_key=routing_key,
+                    body=body.encode("utf-8") if isinstance(body, str) else body,
+                    mandatory=False
+                )
+
+                # metrics safe
+                self.metrics["published"] = self.metrics.get("published", 0) + 1
+
+            # 🔥 Compute current_count bằng passive declare
+            # 🔥 2) Ra khỏi WITH block → connection đã đóng → safe để query count
+            current_count = 0
+
+            # 🔥 Compute current_count bằng passive declare
+            try:
+                qc_conn = pika.BlockingConnection(params)
+                qc_ch = qc_conn.channel()
+                qinfo = qc_ch.queue_declare(queue=queue_name, passive=True)
+                current_count = qinfo.method.message_count
+                qc_conn.close()
+            except Exception as e:
+                print("[AMQP] queueCount failed:", e)
+                current_count = 0
+
+            push_event("amqpMessage", {
+                "type": "queueCount",
+                "queue": queue_name,
+                "count": current_count
+            })
+
+            return True   # ✔ nằm trong function
+
+        except Exception as e:
+            print("[AMQP] Publish failed:", repr(e))
+            self.metrics["errors"] = self.metrics.get("errors", 0) + 1
+            raise
 
     def _publish(self, exchange, routing_key, body):
         self._declare_exchange(exchange, "direct")
@@ -229,8 +301,122 @@ class AmqpClient:
     # ============================================================
     # 8) CONSUME ONE
     # ============================================================
+# ============================================================
+# 💛 LƯU Ý VÀNG — RULE CƠ BẢN NHẤT CỦA RABBITMQ
+# ============================================================
+# Với cùng một tên (queue hoặc exchange), RabbitMQ yêu cầu:
+#
+#   ➤ TẤT CẢ các lần declare phải hoàn toàn giống nhau.
+#
+# Điều này có nghĩa là:
+#
+#   1) Exchange cùng tên → type phải giống (direct/topic/fanout/headers)
+#   2) Queue cùng tên   → arguments phải giống 100% 
+#                         (durable, auto-delete, DLX, TTL, max-length, v.v.)
+#
+# Nếu declare mới KHÁC với cấu hình cũ → RabbitMQ sẽ từ chối ngay lập tức:
+#
+#       PRECONDITION_FAILED (406)
+#       inequivalent arg 'XYZ'
+#
+# Đây không phải lỗi Python hay lỗi code — 
+# mà là bảo vệ của AMQP để tránh thay đổi queue/exchange khi đang chạy.
+#
+# Vì vậy:
+#   ✔ Nếu queue đã từng được declare có x-dead-letter-exchange
+#   ✔ Thì tất cả các lần queue_declare tiếp theo đều phải có thông số giống hệt.
+#
+# Tóm lại:
+#   "KHÔNG PHẢI LÚC NÀO CŨNG ĐƯỢC DECLARE LẠI MỘT THỨ ĐÃ TỒN TẠI."
+#
+# ============================================================
     def consume_one(self, queue):
-        return self._safe(lambda: self._consume_one(queue))
+        """
+        API-safe consume (không đổi chữ ký): giữ nguyên cách gọi, chỉ thay nội dung trả về.
+        """
+
+        import pika
+
+        creds = pika.PlainCredentials(self.username, self.password)
+
+        params = pika.ConnectionParameters(
+            host=self.host,
+            port=self.port,
+            credentials=creds,
+            heartbeat=0,
+            blocked_connection_timeout=10,
+            connection_attempts=3,
+            retry_delay=2
+        )
+
+        try:
+            # 1) Consume bằng connection riêng
+            with pika.BlockingConnection(params) as conn:
+                ch = conn.channel()
+
+                # MUST match existing queue arguments
+                ch.queue_declare(
+                    queue=queue,
+                    durable=True,
+                    arguments={
+                        "x-dead-letter-exchange": f"{queue}.DLX",
+                        "x-dead-letter-routing-key": f"{queue}.DLQ"
+                    }
+                )
+
+                method, props, body = ch.basic_get(queue=queue, auto_ack=True)
+
+                if method is None:
+                    return None  # queue empty
+
+                self.metrics["consumed"] = self.metrics.get("consumed", 0) + 1
+
+            # 2) Query queue-length sau khi WITH kết thúc
+            current_count = 0
+            try:
+                qc_conn = pika.BlockingConnection(params)
+                qc_ch = qc_conn.channel()
+                qinfo = qc_ch.queue_declare(queue=queue, passive=True)
+                current_count = qinfo.method.message_count
+                qc_conn.close()
+            except Exception as e:
+                print("[AMQP] queueCount failed:", e)
+                current_count = 0
+
+            # 3) Push realtime qua SignalR
+            push_event("amqpMessage", {
+                "type": "queueCount",
+                "queue": queue,
+                "count": current_count
+            })
+
+            # 4) Envelope đẹp (không đổi chữ ký)
+            return {
+                "ok": True,
+                "queue": queue,
+                "exchange": method.exchange,
+                "routing_key": method.routing_key,
+                "message": body.decode("utf-8") if body else None,
+                "properties": {
+                    "content_type": getattr(props, "content_type", None),
+                    "headers": getattr(props, "headers", None),
+                    "delivery_mode": getattr(props, "delivery_mode", None),
+                    "priority": getattr(props, "priority", None),
+                    "correlation_id": getattr(props, "correlation_id", None),
+                    "reply_to": getattr(props, "reply_to", None),
+                    "expiration": getattr(props, "expiration", None),
+                    "message_id": getattr(props, "message_id", None),
+                    "timestamp": getattr(props, "timestamp", None),
+                    "type": getattr(props, "type", None),
+                    "user_id": getattr(props, "user_id", None),
+                    "app_id": getattr(props, "app_id", None)
+                }
+            }
+
+        except Exception as e:
+            print("[AMQP] Consume failed:", repr(e))
+            self.metrics["errors"] = self.metrics.get("errors", 0) + 1
+            raise
 
     def _consume_one(self, queue):
         method, props, body = self.channel.basic_get(queue=queue, auto_ack=False)

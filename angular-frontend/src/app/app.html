@@ -26,18 +26,24 @@
       <button (click)="declareQueue()">Declare Queue</button>
       <button (click)="bind()">Bind</button>
       <button (click)="publish()">Publish</button>
-      <button (click)="consume()">Consume</button>
+
+      <button (click)="consume()">
+  	    Consume
+	    <span class="count">({{ $queueLength() ?? 0 }})</span>
+      </button>
+
+
     </div>
 
     @if ($consumeResult()) {
     @let msg = $consumeResult();
     <div>
-      <pre>{{ msg | json }}</pre>
+      <pre>{{ msg | superJson }}</pre>
     </div>
     }
 
     <h3>Logs</h3>
-    <pre>{{ $logs() | json }}</pre>
+    <pre>{{ $logs() | superJson }}</pre>
   </div>
 }
 
@@ -64,7 +70,7 @@
 
     <div>
       <strong>Stats</strong>
-      <pre>{{ $stats() | json }}</pre>
+      <pre>{{ $stats() | superJson }}</pre>
     </div>
 
     <h4>DLQ Tools</h4>
@@ -72,6 +78,6 @@
     <button (click)="peekDlq()">Peek DLQ</button>
     <button (click)="requeueDlq()">Requeue</button>
 
-    <pre>{{ $dlq() | json }}</pre>
+    <pre>{{ $dlq() | superJson }}</pre>
   </div>
 }

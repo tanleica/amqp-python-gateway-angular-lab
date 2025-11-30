@@ -69,5 +69,11 @@ export class RestApiService {
   dlqRequeue(queue: string) {
     return this.post('/api/python-backend/dlq-requeue', { queue });
   }
+
+  getQueueLength(queue: string) {
+    return this.get(`/api/python-backend/queue-length?queue=${queue}`);
+  }
+
+
 }
 

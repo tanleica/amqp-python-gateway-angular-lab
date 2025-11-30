@@ -1,8 +1,8 @@
 import { Component, OnInit, signal, inject, effect } from '@angular/core';
 import { RestApiService } from './rest-api.service';
 import { SignalRService } from './signalr.service';
-import { JsonPipe } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+import { SuperJsonPipe } from './super-json-pipe';
 
 export interface PrometheusMetrics {
   rabbitmqConnections: number;
@@ -15,7 +15,7 @@ export interface PrometheusMetrics {
 @Component({
   selector: 'app-root',
   standalone: true,
-  imports: [JsonPipe, FormsModule],
+  imports: [FormsModule, SuperJsonPipe],
   templateUrl: './app.html',
   styleUrl: './app.scss'
 })
@@ -31,6 +31,7 @@ export class App implements OnInit {
 
   $metrics = signal<PrometheusMetrics | null>(null);
   $queueCount = signal<number | null>(null);
+  $queueLength = signal<number | null>(null);
 
   // Tabs: giữ nguyên như cũ (lab, metrics, advanced)
   $selectedTab = signal<'lab' | 'metrics' | 'advanced'>('lab');
@@ -43,25 +44,72 @@ export class App implements OnInit {
   api = inject(RestApiService);
   public signalr = inject(SignalRService);
 
+constructor() {
+effect(() => {
+  let timer: any = null;
 
-  ngOnInit() {
-    this.refreshMetrics();
-    setInterval(() => this.loadStats(), 3000);
-
-    // Lắng nghe $local (signal)
-    effect(() => {
-      const evt = this.signalr.$local();
-      if (!evt) return;
-
-      if (evt.type === 'uiLog') {
-        this.log(evt.payload?.message || evt.message || 'uiLog');
-      }
-
-      if (evt.type === 'apiError') {
-        this.log('API Error: ' + (evt.payload?.message || evt.message));
-      }
-    });
+  if (this.$selectedTab() === 'metrics') {
+    this.loadStats();
+    timer = setInterval(() => this.loadStats(), 10000);
   }
+
+  return () => {
+    if (timer) clearInterval(timer);
+  };
+});
+
+
+  // ==========================================================
+  // 1) Listen to local UI events (giữ nguyên behaviour cũ)
+  // ==========================================================
+  effect(() => {
+    const evt = this.signalr.$local();
+    if (!evt) return;
+
+    if (evt.type === 'uiLog') {
+      this.log(evt.payload?.message || evt.message || 'uiLog');
+    }
+
+    if (evt.type === 'apiError') {
+      this.log('API Error: ' + (evt.payload?.message || evt.message));
+    }
+  });
+
+// ==========================================================
+// 2) Realtime QueueCount từ SignalR (KHÔNG polling nữa)
+// ==========================================================
+  effect(() => {
+    const data = this.signalr.$queueCount();
+    if (!data) return;
+
+    // chỉ update khi đang xem đúng queue
+    if (data.queue === this.$queue()) {
+      this.$queueLength.set(data.count);
+
+      this.log(`[RT] Queue ${data.queue} count = ${data.count}`);
+    }
+  });
+  // ==========================================================
+  // 3) Realtime AMQP log từ SignalR
+  // ==========================================================
+  effect(() => {
+    const last = this.signalr.$amqpLog();
+    if (!last || last.length === 0) return;
+
+    const evt = last[last.length - 1];
+    // evt = payload từ push_event("amqpMessage", {})
+
+    this.$logs.update(arr => [
+      ...arr,
+      `[RT] ${JSON.stringify(evt)}`
+    ]);
+  });
+}
+
+ngOnInit() {
+  this.refreshMetrics();
+}
+
 
   loadStats() {
     this.api.get('/api/python-backend/amqp-stats')

@@ -23,6 +23,12 @@ export class SignalRService {
   // NEW (EVOLUTION): Local event bus cho UI + RestApiService
   $local = signal<any | null>(null);
 
+  // ==========================================================
+  // NEW — nhưng không phá kiến trúc
+  // ==========================================================
+  $queueCount = signal<{ queue: string; count: number } | null>(null);
+  $amqpLog = signal<any[]>([]);  // log struct đẹp
+
   constructor() {
     this.setupConnection();
   }
@@ -87,6 +93,19 @@ export class SignalRService {
     this.hub.on('amqpMessage', payload => {
       console.log('Hub amqpMessage', payload);
       this.$messages.update(list => [...list, payload]);
+
+
+      // NEW 1: QueueCount realtime
+      if (payload.type === 'queueCount') {
+        this.$queueCount.set({
+          queue: payload.queue,
+          count: payload.count
+        });
+      }
+
+      // NEW 2: readable log struct
+      this.$amqpLog.update(list => [...list, payload]);
+
     });
 
     this.hub.onreconnecting(() => {
