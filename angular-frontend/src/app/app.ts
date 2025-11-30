@@ -1,4 +1,4 @@
-import { Component, signal, inject, OnInit } from '@angular/core';
+import { Component, OnInit, signal, inject, effect } from '@angular/core';
 import { RestApiService } from './rest-api.service';
 import { SignalRService } from './signalr.service';
 import { JsonPipe } from '@angular/common';
@@ -14,119 +14,110 @@ export interface PrometheusMetrics {
 
 @Component({
   selector: 'app-root',
+  standalone: true,
   imports: [JsonPipe, FormsModule],
   templateUrl: './app.html',
-  styleUrls: ['./app.scss']
+  styleUrl: './app.scss'
 })
 export class App implements OnInit {
 
-  // ======================================================
-  // SIGNALS
-  // ======================================================
-  $exchange = signal<string>('');
-  $queue = signal<string>('');
-  $routingKey = signal<string>('');
-  $message = signal<string>('');
+  // Signals
+  $exchange = signal('');
+  $queue = signal('');
+  $routingKey = signal('');
+  $message = signal('');
   $consumeResult = signal<any | null>(null);
   $logs = signal<string[]>([]);
 
   $metrics = signal<PrometheusMetrics | null>(null);
   $queueCount = signal<number | null>(null);
 
-  // FIXED: prom → metrics
+  // Tabs: giữ nguyên như cũ (lab, metrics, advanced)
   $selectedTab = signal<'lab' | 'metrics' | 'advanced'>('lab');
 
+  // Advanced signals
   $stats = signal<any>({});
   $dlq = signal<any>({});
-
   dlqQueue = '';
 
   api = inject(RestApiService);
-  signalr = inject(SignalRService);
+  public signalr = inject(SignalRService);
 
-  // ======================================================
-  // INIT
-  // ======================================================
+
   ngOnInit() {
-    setInterval(() => this.refreshMetrics(), 3000);
+    this.refreshMetrics();
     setInterval(() => this.loadStats(), 3000);
 
-    // FIX: listen to local events FROM SignalRService
-    this.signalr.local.subscribe((evt: any) => {
+    // Lắng nghe $local (signal)
+    effect(() => {
+      const evt = this.signalr.$local();
       if (!evt) return;
-      if (evt.type === 'apiError') this.log("API Error: " + evt.message);
-      if (evt.type === 'uiLog') this.log(evt.message);
+
+      if (evt.type === 'uiLog') {
+        this.log(evt.payload?.message || evt.message || 'uiLog');
+      }
+
+      if (evt.type === 'apiError') {
+        this.log('API Error: ' + (evt.payload?.message || evt.message));
+      }
     });
   }
 
-  // ======================================================
-  // LEVEL 6 — ADVANCED API
-  // ======================================================
   loadStats() {
-    this.api.getAmqpStats().subscribe(res => this.$stats.set(res));
+    this.api.get('/api/python-backend/amqp-stats')
+      .subscribe((res: any) => this.$stats.set(res));
   }
 
   peekDlq() {
-    this.api.peekDlq(this.dlqQueue).subscribe(res => this.$dlq.set(res));
+    this.api.get(`/api/python-backend/dlq-peek?queue=${this.dlqQueue}`)
+      .subscribe((res: any) => this.$dlq.set(res));
   }
 
   requeueDlq() {
-    this.api.requeueDlq(this.dlqQueue).subscribe(() => this.log("DLQ → Main requeued!"));
+    this.api.post('/api/python-backend/dlq-requeue', { queue: this.dlqQueue })
+      .subscribe(() => this.log("Requeued!"));
   }
 
-  // ======================================================
-  // PROMETHEUS
-  // ======================================================
   refreshMetrics() {
-    this.api.getPromMetrics().subscribe(raw => {
-      this.$metrics.set(this.parseMetrics(raw));
+    this.api.getPromMetrics().subscribe((raw: string) => {
+      const parsed = this.parseMetrics(raw);
+      this.$metrics.set(parsed);
     });
   }
 
   parseMetrics(raw: string): PrometheusMetrics {
     const lines = raw.split('\n');
-    const get = (key: string): number => {
-      const row = lines.find(l => l.startsWith(key));
-      if (!row) return 0;
-      const val = Number(row.split(' ').pop());
-      return isNaN(val) ? 0 : val;
+    const get = (key: string) => {
+      const l = lines.find(x => x.startsWith(key));
+      if (!l) return 0;
+      return Number(l.split(' ').pop());
     };
+
     return {
       rabbitmqConnections: get('rabbitmq_connections_opened_total'),
       rabbitmqQueues: get('rabbitmq_queues_declared_total'),
       messagesReady: get('rabbitmq_queue_messages_ready'),
       messagesUnacked: get('rabbitmq_queue_messages_unacked'),
-      messagesTotal: get('rabbitmq_queue_messages'),
+      messagesTotal: get('rabbitmq_queue_messages')
     };
   }
 
-  // ======================================================
-  // QUEUE INFO
-  // ======================================================
   checkQueue(q: string) {
-    this.api.queueInfo(q).subscribe((info: any) => {
+    this.api.getQueueInfo(q).subscribe((info: any) => {
       this.$queueCount.set(info.messages_ready ?? 0);
     });
   }
 
-  // ======================================================
-  // SETTERS
-  // ======================================================
+  // Setters
   setExchange(v: string) { this.$exchange.set(v); }
   setQueue(v: string) { this.$queue.set(v); }
   setRoutingKey(v: string) { this.$routingKey.set(v); }
   setMessage(v: string) { this.$message.set(v); }
 
-  // ======================================================
-  // LOGGING
-  // ======================================================
   log(message: string) {
     this.$logs.update(arr => [...arr, message]);
   }
 
-  // ======================================================
-  // BASIC ACTIONS
-  // ======================================================
   declareExchange() {
     this.api.declareExchange(this.$exchange())
       .subscribe({
@@ -146,17 +137,20 @@ export class App implements OnInit {
   bind() {
     this.api.bind(this.$queue(), this.$exchange(), this.$routingKey())
       .subscribe({
-        next: res => this.log(`Bind OK: ${JSON.stringify(res)}`),
+        next: res => this.log(`Bind ok: ${JSON.stringify(res)}`),
         error: err => this.log(`Error: ${err.error?.message || err.message}`)
       });
   }
 
   publish() {
-    this.api.publish(this.$exchange(), this.$routingKey(), this.$message())
-      .subscribe({
-        next: res => this.log(`Published: ${JSON.stringify(res)}`),
-        error: err => this.log(`Error: ${err.error?.message || err.message}`)
-      });
+    this.api.publish(
+      this.$exchange(),
+      this.$routingKey(),
+      this.$message()
+    ).subscribe({
+      next: res => this.log(`Published! ${JSON.stringify(res)}`),
+      error: err => this.log(`Error: ${err.error?.message || err.message}`)
+    });
   }
 
   consume() {
@@ -170,3 +164,4 @@ export class App implements OnInit {
       });
   }
 }
+

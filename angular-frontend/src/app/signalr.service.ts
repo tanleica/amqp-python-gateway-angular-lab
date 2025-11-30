@@ -13,10 +13,15 @@ export class SignalRService {
   private hub!: HubConnection;
   private retryTimer: any = null;
 
+  // ==========================================================
   // Signals exposed to UI
+  // ==========================================================
   $messages = signal<any[]>([]);
   $connected = signal(false);
   $connecting = signal(true); // start with connecting=true
+
+  // NEW (EVOLUTION): Local event bus cho UI + RestApiService
+  $local = signal<any | null>(null);
 
   constructor() {
     this.setupConnection();
@@ -29,10 +34,10 @@ export class SignalRService {
 
     this.hub = new HubConnectionBuilder()
       .withUrl('/hubs/signal', {
-          transport:
-	    HttpTransportType.WebSockets |
-	    HttpTransportType.ServerSentEvents |
-	    HttpTransportType.LongPolling
+        transport:
+          HttpTransportType.WebSockets |
+          HttpTransportType.ServerSentEvents |
+          HttpTransportType.LongPolling
       })
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: ctx => {
@@ -104,6 +109,14 @@ export class SignalRService {
       clearTimeout(this.retryTimer);
       this.retryTimer = setTimeout(() => this.start(), 2000);
     });
+  }
+
+  // ==========================================================
+  // NEW (EVOLUTION): Local push system for UI & rest-api.service
+  // ==========================================================
+  pushLocal(type: string, payload: any) {
+    console.log("📨 pushLocal →", { type, payload });
+    this.$local.set({ type, payload });
   }
 }
 

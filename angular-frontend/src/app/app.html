@@ -1,173 +1,77 @@
-<div class="page">
-
-  <!-- Header -->
-  <header class="header">
-    <div class="left">
-      <strong>AMQP Lab Adamantium Edition</strong>
-    </div>
-
-    <div class="right" [class.online]="signalr.$connected()">
-      <span class="dot"></span>
-      {{ signalr.$connected() ? 'Online' : signalr.$connecting() ? 'Connecting…' : 'Offline' }}
-    </div>
-  </header>
-
-  <main class="container">
-
-<div class="tabs-wrapper">
-  <button 
-    class="tab-item" 
-    [class.active]="$selectedTab() === 'lab'"
-    (click)="$selectedTab.set('lab')">
-      🚀 AMQP Lab
-  </button>
-
-  <button 
-    class="tab-item" 
-    [class.active]="$selectedTab() === 'advanced'"
-    (click)="$selectedTab.set('advanced')">
-      📊 Prometheus
-  </button>
-
-  <button
-    class="tab-item"
-    [class.active]="$selectedTab() === 'prom'"
-    (click)="$selectedTab.set('prom')">
-      💎 Advanced
-  </button>
-
+<div class="tabs">
+  <button class="tab-item" [class.active]="$selectedTab() === 'lab'" (click)="$selectedTab.set('lab')">Lab</button>
+  <button class="tab-item" [class.active]="$selectedTab() === 'metrics'" (click)="$selectedTab.set('metrics')">Metrics</button>
+  <button class="tab-item" [class.active]="$selectedTab() === 'advanced'" (click)="$selectedTab.set('advanced')">Advanced</button>
 </div>
 
-
 @if ($selectedTab() === 'lab') {
+  <!-- GIỮ NGUYÊN LAB UI -->
+  <div>
+    <h3>AMQP Lab</h3>
 
-    <!-- Declare Exchange -->
-    <section class="card">
-      <h2>Declare Exchange</h2>
-      <input placeholder="Exchange Name"
-        [ngModel]="$exchange()"
-        (ngModelChange)="setExchange($event)" />
-      <button (click)="declareExchange()">Declare</button>
-    </section>
+    <label>Exchange</label>
+    <input [ngModel]="$exchange()" (ngModelChange)="setExchange($event)" />
 
-    <!-- Declare Queue -->
-    <section class="card">
-      <h2>Declare Queue</h2>
-      <input placeholder="Queue Name"
-        [ngModel]="$queue()"
-        (ngModelChange)="setQueue($event)" />
-      <button (click)="declareQueue()">Declare</button>
-    </section>
+    <label>Queue</label>
+    <input [ngModel]="$queue()" (ngModelChange)="setQueue($event)" />
 
-    <!-- Bind -->
-    <section class="card">
-      <h2>Bind Queue</h2>
-      <input placeholder="Exchange"
-        [ngModel]="$exchange()"
-        (ngModelChange)="setExchange($event)" />
-      <input placeholder="Queue"
-        [ngModel]="$queue()"
-        (ngModelChange)="setQueue($event)" />
-      <input placeholder="Routing Key"
-        [ngModel]="$routingKey()"
-        (ngModelChange)="setRoutingKey($event)" />
+    <label>Routing Key</label>
+    <input [ngModel]="$routingKey()" (ngModelChange)="setRoutingKey($event)" />
+
+    <label>Message</label>
+    <textarea [ngModel]="$message()" (ngModelChange)="setMessage($event)"></textarea>
+
+    <div class="buttons">
+      <button (click)="declareExchange()">Declare Exchange</button>
+      <button (click)="declareQueue()">Declare Queue</button>
       <button (click)="bind()">Bind</button>
-    </section>
-
-    <!-- Publish -->
-    <section class="card">
-      <h2>Publish</h2>
-
-      <input placeholder="Exchange"
-        [ngModel]="$exchange()"
-        (ngModelChange)="setExchange($event)" />
-
-      <input placeholder="Routing Key"
-        [ngModel]="$routingKey()"
-        (ngModelChange)="setRoutingKey($event)" />
-
-      <textarea placeholder="Message"
-        rows="3"
-        [ngModel]="$message()"
-        (ngModelChange)="setMessage($event)"></textarea>
-
-      <button class="primary" (click)="publish()">Publish</button>
-    </section>
-
-    <!-- Consume -->
-    <section class="card">
-      <h2>Consume Queue</h2>
-      <input placeholder="Queue"
-        [ngModel]="$queue()"
-        (ngModelChange)="setQueue($event)" />
+      <button (click)="publish()">Publish</button>
       <button (click)="consume()">Consume</button>
+    </div>
 
-      @if ($consumeResult()) {
-      <pre class="output">
-{{ $consumeResult() | json }}
-      </pre>
-      }
-    </section>
+    @if ($consumeResult()) {
+    @let msg = $consumeResult();
+    <div>
+      <pre>{{ msg | json }}</pre>
+    </div>
+    }
 
-    <!-- Realtime Events -->
-    <section class="card">
-      <h2>Realtime Events</h2>
-
-      <div class="event-list">
-        @for (m of signalr.$messages(); track $index) {
-        <div class="logbox">
-          <span class="material-symbols-rounded"></span>
-          <span>{{ m | json }}</span>
-        </div>
-        }
-      </div>
-    </section>
-
-    <!-- Logs -->
-    <section class="card">
-      <h2>Logs</h2>
-      <pre class="logbox">
-{{ $logs().join('\n') }}
-      </pre>
-    </section>
-
+    <h3>Logs</h3>
+    <pre>{{ $logs() | json }}</pre>
+  </div>
 }
 
-@if ($selectedTab() === 'prom') {
-  <h2>Prometheus Dashboard</h2>
-
-  @if ($metrics()) {
-  @let m = $metrics();
+@if ($selectedTab() === 'metrics') {
   <div>
-  
-    <p><b>Connections:</b> {{ m!.rabbitmqConnections }}</p>
-    <p><b>Queues:</b> {{ m!.rabbitmqQueues }}</p>
-    <p><b>Messages Ready:</b> {{ m!.messagesReady }}</p>
-    <p><b>Messages Unacked:</b> {{ m!.messagesUnacked }}</p>
-    <p><b>Total Messages:</b> {{ m!.messagesTotal }}</p>
+    <h3>Prometheus Metrics</h3>
 
+    @if ($metrics()) {
+      @let m = $metrics();
+      <div class="metric-block">
+        <p>Connections: {{ m!.rabbitmqConnections }}</p>
+        <p>Queues: {{ m!.rabbitmqQueues }}</p>
+        <p>Ready: {{ m!.messagesReady }}</p>
+        <p>Unacked: {{ m!.messagesUnacked }}</p>
+        <p>Total: {{ m!.messagesTotal }}</p>
+      </div>
+    }
   </div>
-  } @else {
-    <h4>Not fetched</h4>
-  }
 }
 
 @if ($selectedTab() === 'advanced') {
-  <div class="panel">
-    <h3>AMQP Advanced Metrics</h3>
+  <div>
+    <h3>Advanced</h3>
 
-    <pre>{{ $stats() | json }}</pre>
+    <div>
+      <strong>Stats</strong>
+      <pre>{{ $stats() | json }}</pre>
+    </div>
 
-    <h4>DLQ Peek</h4>
-    <input placeholder="Queue name" [(ngModel)]="dlqQueue">
-
+    <h4>DLQ Tools</h4>
+    <input [(ngModel)]="dlqQueue" placeholder="DLQ Name" />
     <button (click)="peekDlq()">Peek DLQ</button>
-    <pre>{{ $dlq() | json }}</pre>
+    <button (click)="requeueDlq()">Requeue</button>
 
-    <button (click)="requeueDlq()">Requeue to Main</button>
+    <pre>{{ $dlq() | json }}</pre>
   </div>
 }
-
-  </main>
-
-</div>
