@@ -43,7 +43,7 @@
     }
 
     <h3>Logs</h3>
-    <pre>{{ $logs() | superJson }}</pre>
+    <pre>{{ ($logs() | superJson) | superJson }}</pre>
   </div>
 }
 
